@@ -1,30 +1,51 @@
-import {useState, useEffect} from 'react';
-export type Dep<T> = {value: T | null; state: StoreState; store: Store<T>};
-
+import { useState, useEffect } from 'react';
 export enum StoreState {
   LOADING,
   RESOLVED,
   REJECTED
 }
 
+type ResolvedCallbackParams<T> = { state: StoreState.RESOLVED, value: T };
+type RejectedCallbackParams = { state: StoreState.REJECTED, error: Error };
+type LoadingCallbackParams = { state: StoreState.LOADING };
+type SubscriberParams<T> = (ResolvedCallbackParams<T> | RejectedCallbackParams | LoadingCallbackParams);
+type Subscriber<T> = (config: SubscriberParams<T>) => void
+
+export type Dep<T> = {
+  subscribe: (subscriber: Subscriber<T>) => void;
+};
+
+
 export function useDep<T>(dep: Dep<T>) {
-  const [value, setValue] = useState<T | null>(dep.value);
+  const [value, setValue] = useState<T | null>();
+  const [error, setError] = useState<Error | null>();
   const [state, setState] = useState<StoreState>(StoreState.LOADING);
   useEffect(() => {
-    dep.store.subscribe((v, s) => {
-      setValue(v);
-      setState(s);
+    dep.subscribe(cfg => {
+      setState(cfg.state);
+      switch (cfg.state) {
+        case StoreState.RESOLVED:
+          setValue(cfg.value);
+          return;
+        case StoreState.REJECTED:
+          setError(cfg.error);
+          return;
+        case StoreState.LOADING:
+          setValue(null);
+          setError(null);
+          return;
+      }
+
+
     });
   });
   return [value, state];
 }
 
-type ResolutionSubscriber<T> = (val: T | null, state: StoreState) => void;
-type RejectionSubscriber = (e: Error, state: StoreState) => void;
+
 
 export class Store<T> {
-  resolutionSubscribers: ResolutionSubscriber<T>[] = [];
-  rejectionSubscribers: RejectionSubscriber[] = [];
+  subscribers: Subscriber<T>[] = [];
   state: StoreState;
   value: T | null = null;
 
@@ -34,37 +55,51 @@ export class Store<T> {
       .then((value) => {
         this.value = value;
         this.state = StoreState.RESOLVED;
-        this.resolutionSubscribers.forEach((subscriber) => {
-          subscriber(this.value, this.state);
+        this.subscribers.forEach((subscriber) => {
+          subscriber({ state: StoreState.RESOLVED, value });
         });
       })
       .catch((error) => {
         this.value = null;
         this.state = StoreState.REJECTED;
-        this.rejectionSubscribers.forEach((subscriber) => {
-          subscriber(error, this.state);
+        this.subscribers.forEach((subscriber) => {
+          subscriber({ state: StoreState.REJECTED, error });
         });
       });
   }
 
   dep(): Dep<T> {
-    return {value: this.value, state: this.state, store: this};
+    return {
+      subscribe: this.subscribe.bind(this)
+    };
   }
 
-  subscribe(
-    resolutionSubscriber: ResolutionSubscriber<T>,
-    rejectionSubscriber?: RejectionSubscriber
-  ) {
-    this.resolutionSubscribers.push(resolutionSubscriber);
-    if (rejectionSubscriber != null) {
-      this.rejectionSubscribers.push(rejectionSubscriber);
-    }
+  subscribe(subscriber: Subscriber<T>) {
+    this.subscribers.push(subscriber);
   }
 
   async update(modifier: (v: T | null) => Promise<T> | T) {
-    this.value = await modifier(this.value);
-    this.resolutionSubscribers.forEach((subscriber) => {
-      subscriber(this.value, this.state);
+    this.state = StoreState.LOADING;
+    this.subscribers.forEach((subscriber) => {
+      this.subscribers.forEach((subscriber) => {
+        subscriber({ state: StoreState.LOADING });
+      });
     });
+    try {
+      const value = await modifier(this.value);
+      this.value = value;
+      this.state = StoreState.RESOLVED;
+      this.subscribers.forEach((subscriber) => {
+        this.subscribers.forEach((subscriber) => {
+          subscriber({ state: StoreState.RESOLVED, value });
+        });
+      });
+    } catch (error) {
+      this.state = StoreState.REJECTED;
+      this.value = null;
+      this.subscribers.forEach((subscriber) => {
+        subscriber({ state: StoreState.REJECTED, error });
+      });
+    }
   }
 }

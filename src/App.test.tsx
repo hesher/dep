@@ -69,16 +69,25 @@ test('dep changes on async action', async () => {
   const store = new Store(() => Promise.resolve(7));
   const dep = store.dep();
   const Comp = () => {
-    const [val] = useDep(dep);
+    const [val, state] = useDep(dep);
 
-    return <span>Found {val}</span>;
+    return <span>Found {state === StoreState.LOADING ? 'Loading' : val}</span>;
   };
-  const {findByText} = render(<Comp />);
+  const {findByText, getByText} = render(<Comp />);
   const comp = await findByText('Found 7');
   expect(comp).toBeInTheDocument();
-  await act(async () =>
-    store.update((v) => Promise.resolve(2).then((x) => (v ? v + x : 0)))
+  let resolve: (v: number) => void = () => null;
+  let p = act(async () =>
+    store.update((v) =>
+      new Promise<number>((currResolve) => {
+        resolve = currResolve;
+      }).then((x) => (v ? v + x : 0))
+    )
   );
+  const loadingComp = getByText('Found Loading');
+  expect(loadingComp).toBeInTheDocument();
+  resolve(2);
+  await p;
   const comp2 = await findByText('Found 9');
   expect(comp2).toBeInTheDocument();
 });
