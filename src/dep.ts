@@ -35,13 +35,20 @@ export function useDep<T>(dep: Dep<T>) {
           setError(null);
           return;
       }
-
-
     });
   });
   return [value, state];
 }
 
+export function mergeDeps<T, S, Z>(deps: [Dep<T>, Dep<S>], cb: (v1: T, v2: S) => Z): Dep<Z> {
+  const subscribers: Subscriber<Z>[] = [];
+  // subscribers.forEach(sub => sub(cb(deps[0] + deps[1])))
+  return {
+    subscribe(subscriber: Subscriber<Z>) {
+      subscribers.push(subscriber)
+    }
+  }
+};
 
 
 export class Store<T> {
