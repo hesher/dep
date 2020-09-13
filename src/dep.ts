@@ -35,7 +35,7 @@ export class Store<T> {
         this.value = value;
         this.state = StoreState.RESOLVED;
         this.resolutionSubscribers.forEach((subscriber) => {
-          subscriber(value, this.state);
+          subscriber(this.value, this.state);
         });
       })
       .catch((error) => {
@@ -59,5 +59,12 @@ export class Store<T> {
     if (rejectionSubscriber != null) {
       this.rejectionSubscribers.push(rejectionSubscriber);
     }
+  }
+
+  async update(modifier: (v: T | null) => Promise<T> | T) {
+    this.value = await modifier(this.value);
+    this.resolutionSubscribers.forEach((subscriber) => {
+      subscriber(this.value, this.state);
+    });
   }
 }
