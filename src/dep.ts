@@ -1,26 +1,26 @@
 import {useState, useEffect} from 'react';
-export function useDep<T>(dep: {
-  value: T | null;
-  state: StoreState;
-  store: Store<T>;
-}) {
-  const [value, setValue] = useState<T | null>(dep.value);
-  useEffect(() => {
-    dep.store.subscribe((v) => setValue(v));
-  });
-  return [value];
-}
+export type Dep<T> = {value: T | null; state: StoreState; store: Store<T>};
 
-type Dep<T> = {value: T | null; state: StoreState; store: Store<T>};
-
-enum StoreState {
+export enum StoreState {
   LOADING,
   RESOLVED,
   REJECTED
 }
 
-type ResolutionSubscriber<T> = (val: T | null) => void;
-type RejectionSubscriber = (e: Error) => void;
+export function useDep<T>(dep: Dep<T>) {
+  const [value, setValue] = useState<T | null>(dep.value);
+  const [state, setState] = useState<StoreState>(StoreState.LOADING);
+  useEffect(() => {
+    dep.store.subscribe((v, s) => {
+      setValue(v);
+      setState(s);
+    });
+  });
+  return [value, state];
+}
+
+type ResolutionSubscriber<T> = (val: T | null, state: StoreState) => void;
+type RejectionSubscriber = (e: Error, state: StoreState) => void;
 
 export class Store<T> {
   resolutionSubscribers: ResolutionSubscriber<T>[] = [];
@@ -35,14 +35,14 @@ export class Store<T> {
         this.value = value;
         this.state = StoreState.RESOLVED;
         this.resolutionSubscribers.forEach((subscriber) => {
-          subscriber(value);
+          subscriber(value, this.state);
         });
       })
       .catch((error) => {
         this.value = null;
         this.state = StoreState.REJECTED;
         this.rejectionSubscribers.forEach((subscriber) => {
-          subscriber(error);
+          subscriber(error, this.state);
         });
       });
   }
