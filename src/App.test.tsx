@@ -60,7 +60,7 @@ test('dep changes on action', async () => {
   const {findByText} = render(<Comp />);
   const comp = await findByText('Found 7');
   expect(comp).toBeInTheDocument();
-  await act(() => store.update((v) => v ?? 0 + 2));
+  await act(() => store.update((v) => (v ? v + 2 : 0)));
   const comp2 = await findByText('Found 9');
   expect(comp2).toBeInTheDocument();
 });
@@ -77,7 +77,7 @@ test('dep changes on async action', async () => {
   const comp = await findByText('Found 7');
   expect(comp).toBeInTheDocument();
   await act(async () =>
-    store.update((v) => Promise.resolve(2).then((x) => v ?? 0 + x))
+    store.update((v) => Promise.resolve(2).then((x) => (v ? v + x : 0)))
   );
   const comp2 = await findByText('Found 9');
   expect(comp2).toBeInTheDocument();
