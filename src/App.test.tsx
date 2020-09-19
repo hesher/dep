@@ -92,18 +92,20 @@ test("dep changes on async action", async () => {
   expect(comp2).toBeInTheDocument();
 });
 
-// test('dep changes on 2 stores', async () => {
-//   const store1 = new Store<number>(() => Promise.resolve(7));
-//   const store2 = new Store<number>(() => new Promise(resolve => window.setTimeout(() => resolve(12), 100)));
-//   const dep1 = store1.dep();
-//   const dep2 = store2.dep();
-//   const dep3 = mergeDeps([dep1, dep2], (v1, v2) => v1 + v2);
-//   const Comp = () => {
-//     const [val] = useDep(dep3);
+test("dep changes on 2 stores", async () => {
+  const store1 = new Store<number>(() => Promise.resolve(7));
+  const store2 = new Store<number>(
+    () => new Promise((resolve) => window.setTimeout(() => resolve(12), 100))
+  );
+  const dep1 = store1.dep();
+  const dep2 = store2.dep();
+  const dep3 = mergeDeps([dep1, dep2], (v1, v2) => v1 + v2);
+  const Comp = () => {
+    const [val] = useDep(dep3);
 
-//     return <span>Found {val}</span>;
-//   };
-//   const { findByText, getByText } = render(<Comp />);
-//   const comp = await findByText('Found 19');
-//   expect(comp).toBeInTheDocument();
-// });
+    return <span>Found {val}</span>;
+  };
+  const { findByText, getByText } = render(<Comp />);
+  const comp = await findByText("Found 19");
+  expect(comp).toBeInTheDocument();
+});

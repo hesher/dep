@@ -48,12 +48,16 @@ export function useDep<T>(dep: Dep<T>) {
           return;
       }
     });
-  });
+  }, []);
   return [value, state];
 }
 
 type Deppify<T> = {
   [K in keyof T]: Dep<T[K]>;
+};
+
+type Nullable<T> = {
+  [K in keyof T]: T[K] | null;
 };
 
 type Arr = readonly unknown[];
@@ -62,13 +66,74 @@ export function mergeDeps<Elems extends Arr, Z>(
   deps: Deppify<Elems>,
   cb: (...vals: Elems) => Z
 ): Dep<Z | null> {
-  const subscribers: Subscriber<Z>[] = [];
+  const subscribers: Array<Subscriber<Z>> = [];
+  const values: Array<unknown> = (new Array(deps.length).fill(
+    null
+  ) as unknown) as Array<unknown>;
+  const errors: Array<Error | null> = new Array(deps.length).fill(null);
+  const loading: Array<boolean> = new Array(deps.length).fill(false);
 
-  let loadingCount = 0;
   let resolvedCount = 0;
   let rejectedCount = 0;
+  let loadingCount = 0;
 
-  //xxxx
+  deps.forEach((dep, depIndex) =>
+    dep.subscribe((config) => {
+      switch (config.state) {
+        case StoreState.RESOLVED:
+          if (values[depIndex] === null) {
+            resolvedCount++;
+          }
+          if (errors[depIndex] !== null) {
+            rejectedCount--;
+          }
+          if (loading[depIndex] !== null) {
+            loadingCount--;
+          }
+          values[depIndex] = config.value;
+          errors[depIndex] = null;
+          loading[depIndex] = false;
+          if (resolvedCount === deps.length) {
+            subscribers.forEach(emitSuccess(cb(...((values as any) as Elems))));
+          }
+          break;
+        case StoreState.REJECTED:
+          if (values[depIndex] !== null) {
+            resolvedCount--;
+          }
+          if (errors[depIndex] === null) {
+            rejectedCount++;
+          }
+          if (loading[depIndex] === true) {
+            loadingCount--;
+          }
+          values[depIndex] = null;
+          errors[depIndex] = config.error;
+          loading[depIndex] = false;
+          if (rejectedCount === 1) {
+            subscribers.forEach(emitError(config.error));
+          }
+          break;
+        case StoreState.LOADING:
+          if (values[depIndex] !== null) {
+            resolvedCount--;
+          }
+          if (errors[depIndex] !== null) {
+            rejectedCount--;
+          }
+          if (loading[depIndex] === false) {
+            loadingCount++;
+          }
+          values[depIndex] = null;
+          errors[depIndex] = null;
+          loading[depIndex] = true;
+          if (loadingCount === 1) {
+            subscribers.forEach(emitLoading());
+          }
+          break;
+      }
+    })
+  );
 
   return {
     subscribe(subscriber: Subscriber<Z>) {
