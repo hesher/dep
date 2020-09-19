@@ -203,10 +203,8 @@ export class Store<T> {
   async update(modifier: (v: T | null) => Promise<T> | T) {
     this.state = StoreState.LOADING;
     this.subscribers.forEach((subscriber) => {
-      this.subscribers.forEach((subscriber) => {
-        subscriber({
-          state: StoreState.LOADING,
-        });
+      subscriber({
+        state: StoreState.LOADING,
       });
     });
     try {
