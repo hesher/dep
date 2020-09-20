@@ -1,5 +1,3 @@
-import { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } from "constants";
-import { emit } from "process";
 import { useState, useEffect } from "react";
 export enum StoreState {
   LOADING,
@@ -48,8 +46,8 @@ export function useDep<T>(dep: Dep<T>) {
           return;
       }
     });
-  }, []);
-  return [value, state];
+  });
+  return [value, state, error];
 }
 
 type Deppify<T> = {
@@ -65,7 +63,7 @@ type Arr = readonly unknown[];
 export function mergeDeps<Elems extends Arr, Z>(
   deps: Deppify<Elems>,
   cb: (...vals: Elems) => Z
-): Dep<Z | null> {
+): Dep<Z> {
   const subscribers: Array<Subscriber<Z>> = [];
   const values: Array<unknown> = (new Array(deps.length).fill(
     null
@@ -166,7 +164,6 @@ export class Store<T> {
       .then((value) => {
         this.value = value;
         this.error = null;
-        const prevState = this.state;
         this.state = StoreState.RESOLVED;
         this.subscribers.forEach(emitSuccess(value));
       })
@@ -187,11 +184,11 @@ export class Store<T> {
   emitState(subscriber: Subscriber<T>) {
     switch (this.state) {
       case StoreState.RESOLVED:
-        return emitSuccess(nullThrows(this.value))(subscriber);
+        return emitSuccess(nullthrows(this.value))(subscriber);
       case StoreState.LOADING:
         return emitLoading<T>()(subscriber);
       case StoreState.REJECTED:
-        return emitError<T>(nullThrows(this.error))(subscriber);
+        return emitError<T>(nullthrows(this.error))(subscriber);
     }
   }
 
@@ -226,9 +223,43 @@ export class Store<T> {
   }
 }
 
-function nullThrows<T>(val: T | null): T {
+export function nullthrows<T>(val: T | null): T {
   if (val === null) {
     throw Error("unexpected null");
   }
   return val;
+}
+
+export function useSuspenseDep<T>(dep: Dep<T>) {
+  const [value, setValue] = useState<T | null>(null);
+  const [isLoading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    console.log("why not");
+    dep.subscribe((cfg) => {
+      switch (cfg.state) {
+        case StoreState.RESOLVED:
+          console.log("resolved");
+          setValue(cfg.value);
+          setLoading(false);
+          break;
+        case StoreState.REJECTED:
+          setValue(null);
+          setLoading(false);
+          break;
+        case StoreState.LOADING:
+          setValue(null);
+          setLoading(true);
+          break;
+      }
+    });
+  });
+
+  return () => {
+    if (isLoading) {
+      throw Promise.resolve();
+    }
+
+    return value;
+  };
 }
