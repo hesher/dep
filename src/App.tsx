@@ -1,7 +1,8 @@
 import React, { Suspense, useState } from "react";
 import "./App.css";
-import genDepContainer from "./createSuspenseDepContainer";
+import createSuspenseDepContainer from "./createSuspenseDepContainer";
 import { mergeDeps, Store } from "./dep";
+import Town from "./Town";
 
 const genRandom10 = (): Promise<number> =>
   new Promise((resolve) =>
@@ -25,12 +26,11 @@ function DepSuspenseComp<T>({ val }: { val: T }) {
     <div className="App">
       <span>
         <header className="App-header">{val}</header>
-        <button onClick={() => store10.update(genRandom10)}>Regenerate</button>
       </span>
     </div>
   );
 }
-const MyContainer = genDepContainer<number, { add: number }>(
+const MyContainer = createSuspenseDepContainer<number, { add: number }>(
   dep,
   (value) => ({ add }) => {
     const [count, setCount] = useState(1);
@@ -44,9 +44,13 @@ const MyContainer = genDepContainer<number, { add: number }>(
 );
 const DevSuspenseTest = () => {
   return (
-    <Suspense fallback={<header className="App-header">Loading...</header>}>
-      <MyContainer add={1000} />
-    </Suspense>
+    <>
+      <button onClick={() => store10.update(genRandom10)}>Regenerate</button>
+      <Suspense fallback={<header className="App-header">Loading...</header>}>
+        <MyContainer add={1000} />
+        <Town />
+      </Suspense>
+    </>
   );
 };
 

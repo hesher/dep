@@ -14,7 +14,7 @@ function createSuspenseDepContainer<T, Props>(
     state: StoreState.LOADING,
     value: null,
   };
-  let stateResolver: any;
+  let configResolver: any;
   dep.subscribe((cfg) => {
     switch (cfg.state) {
       case StoreState.RESOLVED:
@@ -27,23 +27,23 @@ function createSuspenseDepContainer<T, Props>(
         ret = { state: StoreState.LOADING, value: null };
         break;
     }
-    if (typeof stateResolver === "function") {
-      stateResolver(cfg.state);
+    if (typeof configResolver === "function") {
+      configResolver(cfg);
     }
   });
 
   return (props: Props) => {
-    const [, setState] = useState<T | null>(null);
+    const [config, setConfig] = useState(ret);
     useEffect(() => {
-      stateResolver = setState;
-    }, [setState]);
-    switch (ret.state) {
+      configResolver = setConfig;
+    }, [setConfig]);
+    switch (config.state) {
       case StoreState.LOADING:
         throw p;
       case StoreState.REJECTED:
-        throw ret.error;
+        throw config.error;
       case StoreState.RESOLVED:
-        const Container = makeContainer(ret.value);
+        const Container = makeContainer(config.value);
         return <Container {...props} />;
     }
   };

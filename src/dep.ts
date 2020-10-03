@@ -69,7 +69,7 @@ export function mergeDeps<Elems extends Arr, Z>(
     null
   ) as unknown) as Array<unknown>;
   const errors: Array<Error | null> = new Array(deps.length).fill(null);
-  const loading: Array<boolean> = new Array(deps.length).fill(false);
+  const loading: Array<number> = new Array(deps.length).fill(0);
 
   let resolvedCount = 0;
   let rejectedCount = 0;
@@ -85,13 +85,13 @@ export function mergeDeps<Elems extends Arr, Z>(
           if (errors[depIndex] !== null) {
             rejectedCount--;
           }
-          if (loading[depIndex] !== null) {
+          if (loading[depIndex] === 1) {
             loadingCount--;
           }
           values[depIndex] = config.value;
           errors[depIndex] = null;
-          loading[depIndex] = false;
-          if (resolvedCount === deps.length) {
+          loading[depIndex]--;
+          if (resolvedCount === deps.length && loadingCount === 0) {
             subscribers.forEach(emitSuccess(cb(...((values as any) as Elems))));
           }
           break;
@@ -102,12 +102,12 @@ export function mergeDeps<Elems extends Arr, Z>(
           if (errors[depIndex] === null) {
             rejectedCount++;
           }
-          if (loading[depIndex] === true) {
+          if (loading[depIndex] === 1) {
             loadingCount--;
           }
           values[depIndex] = null;
           errors[depIndex] = config.error;
-          loading[depIndex] = false;
+          loading[depIndex]--;
           if (rejectedCount === 1) {
             subscribers.forEach(emitError(config.error));
           }
@@ -119,12 +119,12 @@ export function mergeDeps<Elems extends Arr, Z>(
           if (errors[depIndex] !== null) {
             rejectedCount--;
           }
-          if (loading[depIndex] === false) {
+          if (loading[depIndex] === 0) {
             loadingCount++;
           }
           values[depIndex] = null;
           errors[depIndex] = null;
-          loading[depIndex] = true;
+          loading[depIndex]++;
           if (loadingCount === 1) {
             subscribers.forEach(emitLoading());
           }
@@ -157,7 +157,7 @@ export class Store<T> {
   value: T | null = null;
   error: Error | null = null;
 
-  constructor(resolver: () => Promise<T>) {
+  constructor(resolver: (...args: any[]) => Promise<T>) {
     this.state = StoreState.LOADING;
     this.subscribers.forEach(emitLoading());
     resolver()
@@ -223,9 +223,9 @@ export class Store<T> {
   }
 }
 
-export function nullthrows<T>(val: T | null): T {
+export function nullthrows<T>(val: T | null, errorMsg?: string): T {
   if (val === null) {
-    throw Error("unexpected null");
+    throw Error(errorMsg ?? "unexpected null");
   }
   return val;
 }
@@ -235,11 +235,9 @@ export function useSuspenseDep<T>(dep: Dep<T>) {
   const [isLoading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    console.log("why not");
     dep.subscribe((cfg) => {
       switch (cfg.state) {
         case StoreState.RESOLVED:
-          console.log("resolved");
           setValue(cfg.value);
           setLoading(false);
           break;
